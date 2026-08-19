@@ -1,0 +1,527 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        1792,
+        208
+      ],
+      "id": "e792a4bd-3546-465c-92b7-9f49b49eec10",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "jYojCp9VGCOqGI1F",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fileSelector": "/Users/sameer/.n8n-files/*.pdf",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        384,
+        0
+      ],
+      "id": "0dcbdb34-98aa-4bbb-a738-062c28f7875f",
+      "name": "Read PDF Files"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        128,
+        0
+      ],
+      "id": "54df305b-a9cf-47ce-9695-430ed0e9a146",
+      "name": "Trigger: Ingest PDFs"
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "pineconeIndex": {
+          "__rl": true,
+          "value": "university-knowledge-base",
+          "mode": "list",
+          "cachedResultName": "university-knowledge-base"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePinecone",
+      "typeVersion": 1.3,
+      "position": [
+        624,
+        0
+      ],
+      "id": "88ec354b-2f91-4eb8-a1dc-6c70e1855308",
+      "name": "Pinecone Vector Database",
+      "credentials": {
+        "pineconeApi": {
+          "id": "MPffoh6dwTItz7xE",
+          "name": "Pinecone account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "dataType": "binary",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        736,
+        192
+      ],
+      "id": "ce310630-d8db-4b39-9742-f3dddcad0acb",
+      "name": "Extract PDF Text"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "chat",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        1024,
+        0
+      ],
+      "id": "7f65e51c-5db8-4226-b846-519c3d77c8a1",
+      "name": "Receive Student Message",
+      "webhookId": "941de285-2917-45d8-aad8-d797eab6dcc2"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "chat_history",
+        "limit": 10,
+        "orderBy": "id",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "session_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Receive Student Message').first().json.body.session_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1232,
+        0
+      ],
+      "id": "3263fdd7-404f-4f2b-b32f-a32604c4cd27",
+      "name": "Fetch Previous Chat History",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "iTEq9kBoy67JImvH",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "load",
+        "pineconeIndex": {
+          "__rl": true,
+          "value": "university-knowledge-base",
+          "mode": "list",
+          "cachedResultName": "university-knowledge-base"
+        },
+        "prompt": "={{ $('Receive Student Message').first().json.body.user_message }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePinecone",
+      "typeVersion": 1.3,
+      "position": [
+        1440,
+        0
+      ],
+      "id": "f045c06c-a9e3-4eeb-a803-391a4e5a439e",
+      "name": "Search Matching PDF Info",
+      "credentials": {
+        "pineconeApi": {
+          "id": "MPffoh6dwTItz7xE",
+          "name": "Pinecone account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1440,
+        192
+      ],
+      "id": "db1461d4-83f5-4b61-a4ff-5434408ad481",
+      "name": "Convert Question to Vector",
+      "credentials": {
+        "openAiApi": {
+          "id": "jYojCp9VGCOqGI1F",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Receive Student Message').first().json.body.user_message }}",
+        "options": {
+          "systemMessage": "You are the official University Student Counselor AI.\n\nInstructions:\n1. Answer the user's question accurately using the retrieved context from Pinecone and previous chat history.\n2. If the user asks for a syllabus, prospectus, or course outline to be sent via email, detect this intent and extract their email address.\n3. Always structure your final output strictly as a JSON object with these keys:\n   - response: (Your detailed answer/reply to the student)\n   - email_intent: (true if user wants prospectus/syllabus emailed, otherwise false)\n   - email: (User's email address if provided, otherwise empty string)"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1792,
+        0
+      ],
+      "id": "0247e0a4-cbb6-4b1a-9e69-f5026eff4138",
+      "name": "Counselor AI Agent"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ JSON.parse($('Counselor AI Agent').first().json.output).email_intent }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "equals"
+                    },
+                    "id": "cf2df940-b2fc-4e49-a552-8d00709c568a"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "4516fc10-c6c1-4333-ae8b-5427218632bd",
+                    "leftValue": "",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        2144,
+        0
+      ],
+      "id": "ce0e87c4-5bcc-475c-8370-244928de8e2b",
+      "name": "Check If Email Needed"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ JSON.parse($('Counselor AI Agent').first().json.output).email || $('Receive Student Message').first().json.body.email }}",
+        "subject": "Official Inquiry Response: Computer Science Program Details & Syllabus",
+        "message": "=<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>University Official Response</title>\n</head>\n<body style=\"margin: 0; padding: 0; background-color: #f3f4f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;\">\n  <table width=\"100%\" border=\"0\" cellspacing=\"0\" cellpadding=\"0\" style=\"background-color: #f3f4f6; padding: 40px 0;\">\n    <tr>\n      <td align=\"center\">\n        <table width=\"620\" border=\"0\" cellspacing=\"0\" cellpadding=\"0\" style=\"background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);\">\n          \n          <!-- Header Banner with Gradient -->\n          <tr>\n            <td style=\"background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #06b6d4 100%); padding: 35px 30px; text-align: center;\">\n              <h1 style=\"color: #ffffff; margin: 0; font-size: 26px; font-weight: 700; letter-spacing: 0.5px;\">\n                🎓 University Student Services\n              </h1>\n              <p style=\"color: #e0e7ff; margin: 8px 0 0 0; font-size: 14px; font-weight: 500;\">\n                Official Admissions & Academic Advisory Center\n              </p>\n            </td>\n          </tr>\n\n          <!-- Main Content Body -->\n          <tr>\n            <td style=\"padding: 40px 35px; color: #374151; font-size: 16px; line-height: 1.7;\">\n              \n              <!-- Greeting -->\n              <p style=\"margin-top: 0; font-size: 18px; font-weight: 700; color: #1e293b;\">\n                Dear Student,\n              </p>\n              \n              <p style=\"margin-bottom: 25px; color: #4b5563;\">\n                Thank you for reaching out to the University Helpdesk. Regarding your inquiry, please find the official details and instructions below:\n              </p>\n\n              <!-- Dynamic AI Response Box -->\n              <table width=\"100%\" border=\"0\" cellspacing=\"0\" cellpadding=\"0\" style=\"margin: 25px 0;\">\n                <tr>\n                  <td style=\"background-color: #f8fafc; border-left: 5px solid #2563eb; border-top: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; border-radius: 8px; padding: 22px; color: #1e293b; font-size: 15px; line-height: 1.8;\">\n                    {{ JSON.parse($('Counselor AI Agent').first().json.output).response }}\n                  </td>\n                </tr>\n              </table>\n\n              <p style=\"margin-bottom: 25px; color: #4b5563;\">\n                If you require further assistance or need additional details about admissions, fees, or course schedules, please do not hesitate to contact us.\n              </p>\n\n              <!-- Action Callout Badge -->\n              <table width=\"100%\" border=\"0\" cellspacing=\"0\" cellpadding=\"0\" style=\"margin: 30px 0 10px 0;\">\n                <tr>\n                  <td align=\"center\">\n                    <div style=\"display: inline-block; background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 30px; padding: 10px 24px;\">\n                      <span style=\"color: #1d4ed8; font-size: 14px; font-weight: 600;\">\n                        💡 Official Prospectus & Information Desk\n                      </span>\n                    </div>\n                  </td>\n                </tr>\n              </table>\n\n            </td>\n          </tr>\n\n          <!-- Sign-off & Footer -->\n          <tr>\n            <td style=\"background-color: #f9fafb; padding: 30px 35px; border-top: 1px solid #f1f5f9;\">\n              <p style=\"margin: 0 0 4px 0; font-size: 15px; color: #64748b;\">Warm regards,</p>\n              <p style=\"margin: 0; font-size: 16px; font-weight: 700; color: #0f172a;\">Office of Student Admissions & Counseling</p>\n              <p style=\"margin: 4px 0 0 0; font-size: 13px; color: #94a3b8;\">\n                University Support Network | Contact: support@university.edu\n              </p>\n            </td>\n          </tr>\n\n        </table>\n      </td>\n    </tr>\n  </table>\n</body>\n</html>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        2352,
+        -112
+      ],
+      "id": "0dc82705-a230-42c6-8981-4334c150b4bb",
+      "name": "Send Email to Student",
+      "webhookId": "69367476-374c-430e-8c3f-26aaab822e8e",
+      "executeOnce": true,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "D11iyAlPhc7FXZzM",
+          "name": "Gmail OAuth Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "chat_history",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "session_id",
+              "fieldValue": "={{ $('Receive Student Message').item.json.body.session_id }}"
+            },
+            {
+              "fieldId": "user_message",
+              "fieldValue": "={{ $('Receive Student Message').item.json.body.user_message }}"
+            },
+            {
+              "fieldId": "user_id",
+              "fieldValue": "={{ $('Receive Student Message').item.json.body.user_id }}"
+            },
+            {
+              "fieldId": "bot_response",
+              "fieldValue": "={{ JSON.parse($('Counselor AI Agent').first().json.output).response }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2576,
+        16
+      ],
+      "id": "0f33d783-2c01-40c0-a92a-f1218648eda3",
+      "name": "Save New Chat to Database",
+      "executeOnce": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "iTEq9kBoy67JImvH",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { reply: JSON.parse($('Counselor AI Agent').first().json.output).response } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2784,
+        16
+      ],
+      "id": "b4255414-9746-4a75-8846-51c91487a262",
+      "name": "Send Final Answer to Webpage"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        560,
+        192
+      ],
+      "id": "2d0f8350-b1d8-4652-8ad3-4d9d9afbd90f",
+      "name": "Convert Text to Vectors",
+      "credentials": {
+        "openAiApi": {
+          "id": "jYojCp9VGCOqGI1F",
+          "name": "OpenAI account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Counselor AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read PDF Files": {
+      "main": [
+        [
+          {
+            "node": "Pinecone Vector Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger: Ingest PDFs": {
+      "main": [
+        [
+          {
+            "node": "Read PDF Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "ai_document": [
+        [
+          {
+            "node": "Pinecone Vector Database",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Receive Student Message": {
+      "main": [
+        [
+          {
+            "node": "Fetch Previous Chat History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Previous Chat History": {
+      "main": [
+        [
+          {
+            "node": "Search Matching PDF Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Matching PDF Info": {
+      "main": [
+        [
+          {
+            "node": "Counselor AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert Question to Vector": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Search Matching PDF Info",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Counselor AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Check If Email Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check If Email Needed": {
+      "main": [
+        [
+          {
+            "node": "Send Email to Student",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save New Chat to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email to Student": {
+      "main": [
+        [
+          {
+            "node": "Save New Chat to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save New Chat to Database": {
+      "main": [
+        [
+          {
+            "node": "Send Final Answer to Webpage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert Text to Vectors": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Pinecone Vector Database",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b007d502eca30aee594799f2e1ea088ccf32a5f63a06ff82e0a0b114a812f6b2"
+  }
+}
